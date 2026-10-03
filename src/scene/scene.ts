@@ -139,8 +139,8 @@ export class OrbitScene {
   }
 
   private onResize() {
-    const width = this.container.clientWidth || window.innerWidth;
-    const height = this.container.clientHeight || window.innerHeight;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
 
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
