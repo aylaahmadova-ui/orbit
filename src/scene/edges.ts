@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { Link } from '../types';
 import { LayoutNode } from '../lib/layout';
+import { getRecencyBrightness } from '../lib/recency';
 
 export interface EdgeRenderObject {
   id: string;
   isCrossLink: boolean;
   sourceId: string;
   targetId: string;
-  strength: number;
+  brightness: number;
   lineMesh: THREE.Line;
   glowLineMesh: THREE.Line;
   pulseSprite?: THREE.Sprite;
@@ -32,7 +33,7 @@ export class EdgeManager {
 
     const originPos = new THREE.Vector3(meNode.x || 0, meNode.y || 0, meNode.z || 0);
 
-    // 1. Primary Edges: YOU -> Each Person
+    // 1. Primary Edges: YOU -> Person
     layoutNodes.forEach((node, id) => {
       if (node.isMe) return;
 
@@ -40,13 +41,14 @@ export class EdgeManager {
       activeEdgeIds.add(edgeId);
 
       const nodePos = new THREE.Vector3(node.x || 0, node.y || 0, node.z || 0);
-      let edgeObj = this.edgesMap.get(edgeId);
+      const brightness = getRecencyBrightness(node.person?.lastContact);
 
+      let edgeObj = this.edgesMap.get(edgeId);
       if (!edgeObj) {
-        edgeObj = this.createEdge(edgeId, false, 'me', id, node.strength, originPos, nodePos);
+        edgeObj = this.createEdge(edgeId, false, 'me', id, brightness, originPos, nodePos);
         this.edgesMap.set(edgeId, edgeObj);
       } else {
-        this.updateEdgeCurve(edgeObj, originPos, nodePos, node.strength);
+        this.updateEdgeCurve(edgeObj, originPos, nodePos, brightness);
       }
     });
 
@@ -62,14 +64,16 @@ export class EdgeManager {
         const posA = new THREE.Vector3(nodeA.x || 0, nodeA.y || 0, nodeA.z || 0);
         const posB = new THREE.Vector3(nodeB.x || 0, nodeB.y || 0, nodeB.z || 0);
 
-        const strengthVal = link.strength / 3; // map 1..3 to ~0.33..1.0
+        const brightnessA = getRecencyBrightness(nodeA.person?.lastContact);
+        const brightnessB = getRecencyBrightness(nodeB.person?.lastContact);
+        const avgBrightness = (brightnessA + brightnessB) * 0.5;
 
         let edgeObj = this.edgesMap.get(edgeId);
         if (!edgeObj) {
-          edgeObj = this.createEdge(edgeId, true, link.a, link.b, strengthVal, posA, posB);
+          edgeObj = this.createEdge(edgeId, true, link.a, link.b, avgBrightness, posA, posB);
           this.edgesMap.set(edgeId, edgeObj);
         } else {
-          this.updateEdgeCurve(edgeObj, posA, posB, strengthVal);
+          this.updateEdgeCurve(edgeObj, posA, posB, avgBrightness);
         }
       }
     }
@@ -90,7 +94,7 @@ export class EdgeManager {
   public animatePulses(time: number) {
     this.edgesMap.forEach((edgeObj) => {
       if (edgeObj.pulseSprite) {
-        const speed = 0.0003 + edgeObj.strength * 0.0004;
+        const speed = 0.0003 + edgeObj.brightness * 0.0004;
         const progress = (time * speed) % 1;
         const point = edgeObj.curve.getPoint(progress);
         edgeObj.pulseSprite.position.copy(point);
@@ -104,7 +108,7 @@ export class EdgeManager {
       const glowMat = edgeObj.glowLineMesh.material as THREE.LineBasicMaterial;
 
       if (!hoveredId && !connectedIds) {
-        lineMat.opacity = this.getDefaultOpacity(edgeObj.strength, edgeObj.isCrossLink);
+        lineMat.opacity = this.getDefaultOpacity(edgeObj.brightness, edgeObj.isCrossLink);
         glowMat.opacity = lineMat.opacity * 0.4;
         return;
       }
@@ -130,7 +134,7 @@ export class EdgeManager {
     isCrossLink: boolean,
     sourceId: string,
     targetId: string,
-    strength: number,
+    brightness: number,
     start: THREE.Vector3,
     end: THREE.Vector3
   ): EdgeRenderObject {
@@ -138,10 +142,9 @@ export class EdgeManager {
     const points = curve.getPoints(32);
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-    const color = this.getEdgeColor(strength, isCrossLink);
-    const opacity = this.getDefaultOpacity(strength, isCrossLink);
+    const color = this.getEdgeColor(brightness, isCrossLink);
+    const opacity = this.getDefaultOpacity(brightness, isCrossLink);
 
-    // Core crisp line
     const lineMat = new THREE.LineBasicMaterial({
       color,
       transparent: true,
@@ -150,7 +153,6 @@ export class EdgeManager {
     });
     const lineMesh = new THREE.Line(geometry, lineMat);
 
-    // Glow under-line
     const glowMat = new THREE.LineBasicMaterial({
       color: 0xff2c4a,
       transparent: true,
@@ -162,14 +164,13 @@ export class EdgeManager {
     this.scene.add(glowLineMesh);
     this.scene.add(lineMesh);
 
-    // Pulse sprite for strong connections
     let pulseSprite: THREE.Sprite | undefined;
-    if (strength >= 0.55 && !isCrossLink) {
+    if (brightness >= 0.75 && !isCrossLink) {
       const spriteMat = new THREE.SpriteMaterial({
         map: this.pulseTexture,
         blending: THREE.AdditiveBlending,
         transparent: true,
-        opacity: 0.8
+        opacity: 0.85
       });
       pulseSprite = new THREE.Sprite(spriteMat);
       pulseSprite.scale.set(16, 16, 1);
@@ -181,7 +182,7 @@ export class EdgeManager {
       isCrossLink,
       sourceId,
       targetId,
-      strength,
+      brightness,
       lineMesh,
       glowLineMesh,
       pulseSprite,
@@ -193,21 +194,23 @@ export class EdgeManager {
     edgeObj: EdgeRenderObject,
     start: THREE.Vector3,
     end: THREE.Vector3,
-    strength: number
+    brightness: number
   ) {
     edgeObj.curve = this.computeCurve(start, end);
-    edgeObj.strength = strength;
+    edgeObj.brightness = brightness;
     const points = edgeObj.curve.getPoints(32);
 
     edgeObj.lineMesh.geometry.setFromPoints(points);
     edgeObj.glowLineMesh.geometry.setFromPoints(points);
+
+    const lineMat = edgeObj.lineMesh.material as THREE.LineBasicMaterial;
+    lineMat.opacity = this.getDefaultOpacity(brightness, edgeObj.isCrossLink);
   }
 
   private computeCurve(start: THREE.Vector3, end: THREE.Vector3): THREE.CatmullRomCurve3 {
     const mid = new THREE.Vector3().addVectors(start, end).multiplyScalar(0.5);
     const dist = start.distanceTo(end);
 
-    // Arch middle control point upwards/outwards
     const dir = new THREE.Vector3().subVectors(end, start).normalize();
     const up = new THREE.Vector3(0, 1, 0);
     const normal = new THREE.Vector3().crossVectors(dir, up).normalize();
@@ -218,16 +221,16 @@ export class EdgeManager {
     return new THREE.CatmullRomCurve3([start, mid, end]);
   }
 
-  private getEdgeColor(strength: number, isCrossLink: boolean): THREE.Color {
+  private getEdgeColor(brightness: number, isCrossLink: boolean): THREE.Color {
     if (isCrossLink) return new THREE.Color(0xd92a44);
-    if (strength > 0.75) return new THREE.Color(0xff7686);
-    if (strength > 0.5) return new THREE.Color(0xff3d55);
+    if (brightness >= 0.9) return new THREE.Color(0xff7686);
+    if (brightness >= 0.7) return new THREE.Color(0xff3d55);
     return new THREE.Color(0xa81e34);
   }
 
-  private getDefaultOpacity(strength: number, isCrossLink: boolean): number {
-    if (isCrossLink) return 0.4;
-    return 0.35 + strength * 0.55;
+  private getDefaultOpacity(brightness: number, isCrossLink: boolean): number {
+    if (isCrossLink) return 0.35;
+    return 0.2 + brightness * 0.7;
   }
 
   private createPulseTexture(): THREE.CanvasTexture {

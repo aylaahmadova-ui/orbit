@@ -2,10 +2,13 @@ import * as THREE from 'three';
 import { OrbitScene } from './scene';
 import { NodeManager } from './nodes';
 import { EdgeManager } from './edges';
-import { LayoutNode, PhysicsLayout } from '../lib/layout';
+import { PhysicsLayout } from '../lib/layout';
 import { store } from '../state/store';
+import { Circle } from '../types';
 
 export type NodeClickCallback = (personId: string | null) => void;
+export type ToastCallback = (message: string) => void;
+export type CameraReadoutCallback = (readout: { az: number; el: number; dist: number }) => void;
 
 export class InteractionManager {
   private sceneObj: OrbitScene;
@@ -37,6 +40,8 @@ export class InteractionManager {
   } | null = null;
 
   private onSelectNodeCallback?: NodeClickCallback;
+  private onToastCallback?: ToastCallback;
+  private onCameraReadoutCallback?: CameraReadoutCallback;
 
   constructor(
     sceneObj: OrbitScene,
@@ -60,6 +65,14 @@ export class InteractionManager {
     this.onSelectNodeCallback = cb;
   }
 
+  public setOnToast(cb: ToastCallback) {
+    this.onToastCallback = cb;
+  }
+
+  public setOnCameraReadout(cb: CameraReadoutCallback) {
+    this.onCameraReadoutCallback = cb;
+  }
+
   public setAutoRotateEnabled(enabled: boolean) {
     this.autoRotateEnabled = enabled;
   }
@@ -72,14 +85,12 @@ export class InteractionManager {
     dom.addEventListener('pointerup', this.onPointerUp.bind(this));
     dom.addEventListener('dblclick', this.onDoubleClick.bind(this));
 
-    // Stop auto rotate on user interaction
     ['pointerdown', 'wheel', 'touchstart', 'keydown'].forEach((evt) => {
       window.addEventListener(evt, () => {
         this.lastInputTime = Date.now();
       });
     });
 
-    // Keyboard shortcuts
     window.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
         this.clearSelection();
@@ -92,7 +103,6 @@ export class InteractionManager {
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
 
-    // Node Dragging logic
     if (this.isDraggingNode && this.draggedNodeId) {
       this.raycaster.setFromCamera(this.mouse, this.sceneObj.camera);
       const intersectPoint = new THREE.Vector3();
@@ -106,12 +116,27 @@ export class InteractionManager {
         layoutNode.fx = intersectPoint.x;
         layoutNode.fy = intersectPoint.y;
         layoutNode.fz = intersectPoint.z;
+
+        // Check if dragged across circle ring boundary
+        const newCircle = this.layout.handleNodeDragPosition(
+          this.draggedNodeId,
+          intersectPoint.x,
+          intersectPoint.y,
+          intersectPoint.z
+        );
+
+        if (newCircle && layoutNode.person) {
+          const circleName = newCircle.charAt(0).toUpperCase() + newCircle.slice(1);
+          if (this.onToastCallback) {
+            this.onToastCallback(`${layoutNode.person.name} moved to ${circleName}`);
+          }
+        }
+
         this.layout.reheat();
       }
       return;
     }
 
-    // Hover raycasting
     this.raycaster.setFromCamera(this.mouse, this.sceneObj.camera);
     const nodeGroups = Array.from(this.nodeManager.getNodeGroupMap().values());
     const meshes = nodeGroups.map((g) => g.discMesh);
@@ -128,7 +153,7 @@ export class InteractionManager {
   }
 
   private onPointerDown(e: PointerEvent) {
-    if (e.button !== 0) return; // Only left click
+    if (e.button !== 0) return;
 
     this.raycaster.setFromCamera(this.mouse, this.sceneObj.camera);
     const nodeGroups = Array.from(this.nodeManager.getNodeGroupMap().values());
@@ -145,7 +170,6 @@ export class InteractionManager {
         this.draggedNodeId = hitId;
         this.sceneObj.controls.enabled = false;
 
-        // Set drag plane parallel to camera facing
         const normal = this.sceneObj.camera.getWorldDirection(new THREE.Vector3()).negate();
         this.dragPlane.setFromNormalAndCoplanarPoint(normal, hitMesh.position);
       }
@@ -165,7 +189,6 @@ export class InteractionManager {
       return;
     }
 
-    // Single Click Node Focus
     this.raycaster.setFromCamera(this.mouse, this.sceneObj.camera);
     const nodeGroups = Array.from(this.nodeManager.getNodeGroupMap().values());
     const meshes = nodeGroups.map((g) => g.discMesh);
@@ -176,7 +199,6 @@ export class InteractionManager {
       const hitId = (intersects[0].object as THREE.Mesh).userData.id;
       this.selectNode(hitId);
     } else {
-      // Clicked empty space
       this.clearSelection();
     }
   }
@@ -190,12 +212,10 @@ export class InteractionManager {
 
     if (intersects.length > 0) {
       const hitId = (intersects[0].object as THREE.Mesh).userData.id;
-      // Double click on a pinned node unpins it
       if (hitId !== 'me') {
         store.unpinPerson(hitId);
       }
     } else {
-      // Double click empty space resets overview camera
       this.resetCameraOverview();
     }
   }
@@ -212,7 +232,6 @@ export class InteractionManager {
         .multiplyScalar(220);
 
       const targetCamPos = new THREE.Vector3().addVectors(targetLook, camOffset);
-
       this.flyCameraTo(targetCamPos, targetLook);
     }
 
@@ -263,9 +282,8 @@ export class InteractionManager {
       return;
     }
 
-    // Gather connected node IDs
     const connected = new Set<string>();
-    connected.add('me'); // always connected to ME
+    connected.add('me');
 
     const appState = store.getState();
     appState.links.forEach((link) => {
@@ -290,13 +308,12 @@ export class InteractionManager {
     const metaEl = tooltip.querySelector('.tooltip-meta') as HTMLElement;
 
     if (layoutNode.isMe) {
-      nameEl.textContent = store.getState().me.name;
-      metaEl.textContent = 'Central Node';
+      nameEl.textContent = 'YOU';
+      metaEl.textContent = 'CENTRAL ORIGIN';
     } else if (layoutNode.person) {
       nameEl.textContent = layoutNode.person.name;
-      metaEl.innerHTML = `<span>${layoutNode.person.category.replace('_', ' ')}</span><span>Strength ${(
-        layoutNode.strength * 100
-      ).toFixed(0)}%</span>`;
+      const catText = layoutNode.person.category ? layoutNode.person.category.replace('_', ' ') : 'person';
+      metaEl.innerHTML = `<span>${catText.toUpperCase()}</span><span>CIRCLE [${layoutNode.person.circle.toUpperCase()}]</span>`;
     }
 
     tooltip.classList.add('visible');
@@ -319,12 +336,9 @@ export class InteractionManager {
   }
 
   public update(now: number) {
-    // 1. Smooth Camera Fly-To Interpolation
     if (this.cameraAnimation && this.cameraAnimation.active) {
       const elapsed = now - this.cameraAnimation.startTime;
       const progress = Math.min(1, elapsed / this.cameraAnimation.duration);
-
-      // Smooth cubic ease-in-out curve
       const ease = progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
       this.sceneObj.camera.position.lerpVectors(
@@ -343,7 +357,6 @@ export class InteractionManager {
       }
     }
 
-    // 2. Idle Auto-Rotate
     const idleTime = Date.now() - this.lastInputTime;
     const isIdle = idleTime > 10000;
     const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -353,6 +366,16 @@ export class InteractionManager {
       this.sceneObj.controls.autoRotateSpeed = 0.4;
     } else {
       this.sceneObj.controls.autoRotate = false;
+    }
+
+    // Camera Instrument Readout calculation (AZ, EL, DIST)
+    if (this.onCameraReadoutCallback) {
+      const pos = this.sceneObj.camera.position;
+      const dist = Math.round(pos.length());
+      const az = Math.round((Math.atan2(pos.x, pos.z) * 180) / Math.PI);
+      const el = Math.round((Math.asin(pos.y / (dist || 1)) * 180) / Math.PI);
+
+      this.onCameraReadoutCallback({ az: (az + 360) % 360, el, dist });
     }
   }
 }

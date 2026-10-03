@@ -4,6 +4,7 @@ import { PhysicsLayout } from './lib/layout';
 import { NodeManager } from './scene/nodes';
 import { EdgeManager } from './scene/edges';
 import { AtmosphereManager } from './scene/atmosphere';
+import { OrbitRingsManager } from './scene/rings';
 import { InteractionManager } from './scene/interaction';
 import { store } from './state/store';
 import { DetailPanel } from './ui/panel';
@@ -11,6 +12,8 @@ import { AddPersonModal } from './ui/addPerson';
 import { SearchModal } from './ui/search';
 import { CategoryFilterUI } from './ui/filters';
 import { SettingsModal } from './ui/settings';
+import { FadingListUI } from './ui/fading';
+import { Circle } from './types';
 
 class OrbitApp {
   private sceneObj: OrbitScene;
@@ -18,6 +21,7 @@ class OrbitApp {
   private nodeManager: NodeManager;
   private edgeManager: EdgeManager;
   private atmosphere: AtmosphereManager;
+  private ringsManager: OrbitRingsManager;
   private interaction: InteractionManager;
 
   private detailPanel: DetailPanel;
@@ -25,20 +29,18 @@ class OrbitApp {
   private searchModal: SearchModal;
   private categoryFilters: CategoryFilterUI;
   private settingsModal: SettingsModal;
+  private fadingList: FadingListUI;
 
   constructor() {
     const canvasContainer = document.getElementById('canvas-container')!;
 
-    // 1. Initialize 3D Engine & Scene
     this.sceneObj = new OrbitScene(canvasContainer);
-
-    // 2. Physics & Managers
     this.layout = new PhysicsLayout();
     this.nodeManager = new NodeManager(this.sceneObj.scene);
     this.edgeManager = new EdgeManager(this.sceneObj.scene);
     this.atmosphere = new AtmosphereManager(this.sceneObj.scene);
+    this.ringsManager = new OrbitRingsManager(this.sceneObj.scene);
 
-    // 3. Interaction Engine
     this.interaction = new InteractionManager(
       this.sceneObj,
       this.nodeManager,
@@ -46,27 +48,24 @@ class OrbitApp {
       this.layout
     );
 
-    // 4. UI Components
     this.detailPanel = new DetailPanel(document.getElementById('detail-panel-container')!);
     this.addPersonModal = new AddPersonModal(document.getElementById('add-person-container')!);
     this.searchModal = new SearchModal(document.getElementById('search-container')!);
     this.categoryFilters = new CategoryFilterUI(document.getElementById('category-filters-container')!);
     this.settingsModal = new SettingsModal(document.getElementById('settings-container')!);
+    this.fadingList = new FadingListUI(document.getElementById('fading-list-container')!);
 
     this.setupInteractions();
     this.setupPhysicsTick();
     this.setupStoreSubscription();
     this.setupToolbarEvents();
 
-    // Trigger initial render & layout
     this.onStoreStateChange(store.getState());
 
-    // Start animation render loop
     requestAnimationFrame(this.animate.bind(this));
   }
 
   private setupInteractions() {
-    // Select node handler
     this.interaction.setOnSelectNode((personId) => {
       if (personId) {
         this.detailPanel.open(personId);
@@ -75,17 +74,29 @@ class OrbitApp {
       }
     });
 
-    // Detail panel target person click callback
+    this.interaction.setOnToast((msg) => {
+      this.showToast(msg);
+    });
+
+    this.interaction.setOnCameraReadout((readout) => {
+      const readoutEl = document.getElementById('camera-instrument-readout');
+      if (readoutEl) {
+        readoutEl.textContent = `AZ ${readout.az}° EL ${readout.el}° DIST ${readout.dist}`;
+      }
+    });
+
     this.detailPanel.setOnSelectPerson((id) => {
       this.interaction.selectNode(id);
     });
 
-    // Search modal selection callback
     this.searchModal.setOnSelectPerson((id) => {
       this.interaction.selectNode(id);
     });
 
-    // Category filter callback
+    this.fadingList.setOnSelectPerson((id) => {
+      this.interaction.selectNode(id);
+    });
+
     this.categoryFilters.setOnChange((hiddenCategories) => {
       this.nodeManager.setCategoryFilter(hiddenCategories);
     });
@@ -108,27 +119,33 @@ class OrbitApp {
   }
 
   private onStoreStateChange(state: any) {
-    // 1. Update Physics layout simulation
     this.layout.setPhysicsEnabled(state.settings.physics);
     this.layout.updateData(state.people, state.links);
 
-    // 2. Synchronize visual nodes and edges
     const nodesMap = this.layout.getNodesMap();
     this.nodeManager.updateNodes(nodesMap, state.me.name);
     this.edgeManager.updateEdges(nodesMap, state.links);
 
-    // 3. Settings updates
+    // Update 3D Orbit Ring circle counts
+    const circleCounts: Record<Circle, number> = { core: 0, close: 0, regular: 0, distant: 0 };
+    state.people.forEach((p: any) => {
+      if (circleCounts[p.circle as Circle] !== undefined) {
+        circleCounts[p.circle as Circle]++;
+      }
+    });
+    this.ringsManager.updateCounts(circleCounts);
+
     this.sceneObj.setBloomStrength(state.settings.bloom);
     this.sceneObj.labelRenderer.domElement.style.display = state.settings.showLabels ? 'block' : 'none';
     this.interaction.setAutoRotateEnabled(state.settings.autoRotate);
 
-    // 4. Update UI readouts
     const countEl = document.getElementById('people-count-readout');
     if (countEl) {
-      countEl.textContent = `${state.people.length} Connections`;
+      countEl.textContent = `${state.people.length} CONNECTIONS`;
     }
 
-    // Update active detail panel if open
+    this.categoryFilters.updateCounts(state.people);
+    this.fadingList.update();
     this.detailPanel.update();
   }
 
@@ -151,6 +168,17 @@ class OrbitApp {
     });
   }
 
+  private showToast(msg: string) {
+    const toast = document.getElementById('toast');
+    if (!toast) return;
+    toast.textContent = msg.toUpperCase();
+    toast.classList.add('visible');
+
+    setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 2500);
+  }
+
   private animate(time: number) {
     requestAnimationFrame(this.animate.bind(this));
 
@@ -161,7 +189,6 @@ class OrbitApp {
   }
 }
 
-// Initialize application on DOM load
 window.addEventListener('DOMContentLoaded', () => {
   new OrbitApp();
 });

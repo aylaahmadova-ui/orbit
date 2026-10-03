@@ -4,61 +4,63 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Orbit — 3D Personal Relationship Web</title>
-    <meta name="description" content="A local-first interactive 3D relationship network map visualizing personal connections, closeness, and strength." />
+    <meta name="description" content="A local-first interactive 3D relationship network map based on Dunbar circles and recency." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="/assets/index-DQtEARA7.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-sNomjaxA.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet" />
+    <script type="module" crossorigin src="/assets/index-RmFQqvW4.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B81WP-bS.css">
   </head>
   <body>
     <div id="app">
-      <!-- 3D Three.js & CSS2D canvas container -->
+      <!-- 3D Canvas Container -->
       <div id="canvas-container"></div>
 
-      <!-- HUD Header -->
-      <div class="hud-header">
-        <div>
-          <div class="brand-title">ORBIT</div>
-          <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
-            <span class="brand-badge">3D NETWORK</span>
-            <span style="font-size: 11px; color: #a8636e;" id="people-count-readout">0 People</span>
-          </div>
-        </div>
+      <!-- Observatory Corner Crosshair Marks -->
+      <div class="corner-crosshair crosshair-tl">+</div>
+      <div class="corner-crosshair crosshair-tr">+</div>
+      <div class="corner-crosshair crosshair-bl">+</div>
+      <div class="corner-crosshair crosshair-br">+</div>
 
-        <!-- Category Filters -->
-        <div id="category-filters-container" style="margin-left: 20px;"></div>
+      <!-- Top Left: Brand Title, Count Readout, Camera Instrument Coordinates -->
+      <div class="corner-top-left">
+        <div class="brand-title">ORBIT</div>
+        <div class="hud-readout" id="people-count-readout">0 CONNECTIONS</div>
+        <div class="hud-readout" id="camera-instrument-readout" style="color: #ff7686; margin-top: 2px;">
+          AZ 0° EL 0° DIST 0
+        </div>
       </div>
 
-      <!-- Floating Toolbar -->
-      <div class="floating-toolbar glass-panel">
-        <button type="button" class="btn-icon btn-primary" id="btn-add-person">
-          <span style="font-size: 16px;">＋</span> Add Person <span style="font-size: 10px; opacity: 0.7;">(N)</span>
-        </button>
+      <!-- Top Right: Plain Text Actions -->
+      <div class="corner-top-right">
+        <button type="button" class="btn-text" id="btn-search">SEARCH [/]</button>
+        <button type="button" class="btn-text" id="btn-reset-cam">OVERVIEW</button>
+        <button type="button" class="btn-text" id="btn-settings">SETTINGS</button>
+      </div>
 
-        <button type="button" class="btn-icon" id="btn-search">
-          🔍 Search <span style="font-size: 10px; opacity: 0.7;">(/)</span>
-        </button>
+      <!-- Bottom Left: Category Legend & Quiet Fading Connections List -->
+      <div class="corner-bottom-left">
+        <div id="category-filters-container"></div>
+        <div id="fading-list-container"></div>
+      </div>
 
-        <button type="button" class="btn-icon" id="btn-reset-cam">
-          🎯 Overview
-        </button>
-
-        <button type="button" class="btn-icon" id="btn-settings">
-          ⚙️ Settings
+      <!-- Bottom Right: Primary Action Button -->
+      <div class="corner-bottom-right">
+        <button type="button" class="btn-rect btn-primary" id="btn-add-person">
+          + ADD PERSON [N]
         </button>
       </div>
 
       <!-- Tooltip -->
-      <div id="tooltip" class="glass-panel">
+      <div id="tooltip">
         <div class="tooltip-name"></div>
         <div class="tooltip-meta"></div>
       </div>
 
-      <!-- Snackbar for Undo -->
-      <div id="snackbar" class="snackbar"></div>
+      <!-- Quiet Toast Notification -->
+      <div id="toast" class="toast"></div>
 
-      <!-- UI Modal & Panel Mount Points -->
+      <!-- Side Panels & Modals Mount Points -->
       <div id="detail-panel-container"></div>
       <div id="add-person-container"></div>
       <div id="search-container"></div>

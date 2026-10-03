@@ -1,7 +1,7 @@
-import { Person, Category, ContactFrequency, Link } from '../types';
-import { calculateStrength } from '../lib/strength';
+import { Person, Circle } from '../types';
+import { CIRCLE_DESCRIPTIONS } from '../types';
 import { store } from '../state/store';
-import { SVG_ICONS } from '../scene/nodes';
+import { getRecencyStage } from '../lib/recency';
 
 export class DetailPanel {
   private container: HTMLElement;
@@ -43,94 +43,60 @@ export class DetailPanel {
       return;
     }
 
-    const breakdown = calculateStrength(person);
     const body = this.container.querySelector('#detail-panel-body') as HTMLElement;
     const title = this.container.querySelector('#detail-panel-title') as HTMLElement;
 
-    if (title) title.textContent = person.name;
-
+    if (title) title.textContent = person.name.toUpperCase();
     if (!body) return;
 
-    // Filter available people for "Connect to..." picker
+    const recencyStage = getRecencyStage(person.lastContact);
     const otherPeople = state.people.filter((p) => p.id !== person.id);
     const existingLinks = state.links.filter((l) => l.a === person.id || l.b === person.id);
 
     body.innerHTML = `
-      <!-- Strength Breakdown Card -->
-      <div class="strength-card">
-        <div class="strength-header">
-          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #e4a2aa;">Relationship Strength</span>
-          <span class="strength-score">${(breakdown.finalStrength * 100).toFixed(0)}%</span>
+      <!-- Primary Habit Action: SPOKE TODAY -->
+      <div style="margin-bottom: 20px;">
+        <button type="button" class="btn-rect btn-primary" id="spoke-today-btn" style="width: 100%; padding: 12px; font-size: 12px; font-weight: 700;">
+          ⚡ SPOKE TODAY
+        </button>
+        <div style="font-size: 10px; color: #e4a2aa; text-transform: uppercase; margin-top: 6px; text-align: center;">
+          LAST CONTACT: ${this.formatLastContact(person.lastContact)} [${recencyStage.replace('_', ' ').toUpperCase()}]
         </div>
-        <div class="factor-row">
-          <span>Target Distance</span>
-          <span style="color: #ffffff; font-weight: 700;">${breakdown.targetRadius.toFixed(0)} units</span>
-        </div>
-        <div class="factor-row">
-          <span>Closeness Rating (${person.closeness}/5)</span>
-          <span>+${(breakdown.base * 60).toFixed(1)}%</span>
-        </div>
-        <div class="factor-row">
-          <span>Contact Frequency (${person.contactFrequency || 'monthly'})</span>
-          <span>+${(breakdown.frequency * 25).toFixed(1)}%</span>
-        </div>
-        <div class="factor-row">
-          <span>Recency Score</span>
-          <span>+${(breakdown.recency * 15).toFixed(1)}%</span>
-        </div>
-        ${
-          breakdown.categoryFloor > 0
-            ? `<div class="factor-row" style="color: #ff7686; font-weight: 700;">
-                <span>${person.category} Floor Enforced</span>
-                <span>min ${(breakdown.categoryFloor * 100).toFixed(0)}%</span>
-              </div>`
-            : ''
-        }
       </div>
 
       <!-- Quick Fields Edit Form -->
       <form id="edit-person-form">
         <div class="form-group">
-          <label class="form-label">Full Name</label>
+          <label class="form-label">FULL NAME</label>
           <input type="text" class="form-input" id="edit-name" value="${person.name}" required />
         </div>
 
+        <!-- Circle Selector -->
         <div class="form-group">
-          <label class="form-label">Category</label>
-          <div class="segmented-control">
-            ${['partner', 'family', 'close_friend', 'friend', 'colleague', 'acquaintance']
+          <label class="form-label">INTIMACY CIRCLE</label>
+          <div style="display: flex; flex-direction: column; gap: 6px;" id="edit-circle-picker">
+            ${(['core', 'close', 'regular', 'distant'] as Circle[])
+              .map(
+                (c) => `
+              <div class="circle-choice-option ${person.circle === c ? 'active' : ''}" data-circle="${c}">
+                <div style="font-weight: 700;">${c.toUpperCase()} ${person.circle === c ? '[■]' : ''}</div>
+                <div style="font-size: 10px; opacity: 0.7;">${CIRCLE_DESCRIPTIONS[c]}</div>
+              </div>
+            `
+              )
+              .join('')}
+          </div>
+        </div>
+
+        <!-- Category Label -->
+        <div class="form-group">
+          <label class="form-label">CATEGORY TAG</label>
+          <select class="form-select" id="edit-category">
+            ${['family', 'partner', 'friend', 'colleague', 'acquaintance']
               .map(
                 (cat) => `
-              <button type="button" class="segment-btn ${person.category === cat ? 'active' : ''}" data-cat="${cat}">
-                ${cat.replace('_', ' ')}
-              </button>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Closeness Level</label>
-          <div class="dots-slider" id="edit-closeness-slider">
-            ${[1, 2, 3, 4, 5]
-              .map(
-                (val) => `
-              <div class="dot-step ${person.closeness === val ? 'active' : ''}" data-val="${val}">${val}</div>
-            `
-              )
-              .join('')}
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Contact Frequency</label>
-          <select class="form-select" id="edit-frequency">
-            ${['daily', 'weekly', 'monthly', 'yearly', 'rarely']
-              .map(
-                (freq) => `
-              <option value="${freq}" ${person.contactFrequency === freq ? 'selected' : ''}>
-                ${freq.charAt(0).toUpperCase() + freq.slice(1)}
+              <option value="${cat}" ${person.category === cat ? 'selected' : ''}>
+                ${cat.toUpperCase()}
               </option>
             `
               )
@@ -138,15 +104,17 @@ export class DetailPanel {
           </select>
         </div>
 
+        <!-- Last Contact Date Override -->
         <div class="form-group">
-          <label class="form-label">Last Contact Date</label>
+          <label class="form-label">LAST CONTACT DATE</label>
           <input type="date" class="form-input" id="edit-last-contact" value="${
             person.lastContact ? person.lastContact.substring(0, 10) : ''
           }" />
         </div>
 
+        <!-- Notes -->
         <div class="form-group">
-          <label class="form-label">Notes & Memory Log</label>
+          <label class="form-label">NOTES & MEMORY LOG</label>
           <textarea class="form-textarea" id="edit-notes" rows="3" placeholder="Add notes...">${
             person.notes || ''
           }</textarea>
@@ -154,33 +122,33 @@ export class DetailPanel {
 
         ${
           person.pinned
-            ? `<div class="form-group" style="display:flex; justify-between; align-items:center; background: rgba(255,61,85,0.1); padding: 8px 12px; border-radius: 8px;">
-                <span style="font-size: 11px; color: #ff7686; font-weight: 700;">📌 Position Pinned</span>
-                <button type="button" class="btn-icon" id="unpin-btn" style="padding: 4px 10px; font-size: 11px;">Unpin</button>
+            ? `<div class="form-group" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid rgba(255,61,85,0.3); padding: 8px 0;">
+                <span style="font-size: 10px; color: #ff7686; font-weight: 700;">📌 POSITION PINNED</span>
+                <button type="button" class="btn-text" id="unpin-btn">UNPIN</button>
               </div>`
             : ''
         }
       </form>
 
-      <!-- Connections (Person to Person links) -->
+      <!-- Connections -->
       <div style="margin-top: 24px; border-top: 1px solid rgba(255, 61, 85, 0.2); padding-top: 18px;">
-        <label class="form-label">Connections (${existingLinks.length})</label>
+        <label class="form-label">DIRECT CONNECTIONS [${existingLinks.length}]</label>
 
         <div style="display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px;">
           ${
             existingLinks.length === 0
-              ? '<span style="font-size: 11px; color: #a8636e; italic;">No direct connections to others yet</span>'
+              ? '<span style="font-size: 10px; color: #a8636e; font-style: italic;">No direct connections to others</span>'
               : existingLinks
                   .map((link) => {
                     const otherId = link.a === person.id ? link.b : link.a;
                     const other = state.people.find((p) => p.id === otherId);
                     if (!other) return '';
                     return `
-                    <div style="display: flex; justify-between; align-items: center; background: rgba(12,2,6,0.6); padding: 6px 10px; border-radius: 6px; border: 1px solid rgba(255,61,85,0.15);">
-                      <span class="link-target-name" data-id="${other.id}" style="font-size: 12px; cursor: pointer; color: #ffd9dd; text-decoration: underline;">
-                        ${other.name}
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,61,85,0.15); padding: 4px 0;">
+                      <span class="link-target-name" data-id="${other.id}" style="font-size: 11px; cursor: pointer; color: #ffd9dd; text-decoration: underline;">
+                        ${other.name.toUpperCase()} [${other.circle.toUpperCase()}]
                       </span>
-                      <button type="button" class="close-btn remove-link-btn" data-linkid="${link.id}" style="font-size: 14px;">✕</button>
+                      <button type="button" class="btn-text remove-link-btn" data-linkid="${link.id}">[REMOVE]</button>
                     </div>
                   `;
                   })
@@ -190,22 +158,22 @@ export class DetailPanel {
 
         <div style="display: flex; gap: 8px;">
           <select class="form-select" id="add-link-target" style="flex: 1;">
-            <option value="">Connect to person...</option>
+            <option value="">CONNECT TO PERSON...</option>
             ${otherPeople
-              .map((p) => `<option value="${p.id}">${p.name} (${p.category})</option>`)
+              .map((p) => `<option value="${p.id}">${p.name.toUpperCase()}</option>`)
               .join('')}
           </select>
-          <button type="button" class="btn-icon btn-primary" id="add-link-btn">Connect</button>
+          <button type="button" class="btn-rect" id="add-link-btn">CONNECT</button>
         </div>
       </div>
 
       <!-- Action Buttons -->
       <div style="display: flex; justify-content: space-between; gap: 12px; margin-top: 28px;">
-        <button type="button" class="btn-icon" id="delete-person-btn" style="background: rgba(168, 30, 52, 0.25); border-color: rgba(168, 30, 52, 0.5); color: #ff7686;">
-          Delete Person
+        <button type="button" class="btn-text" id="delete-person-btn" style="color: #ff7686;">
+          DELETE PERSON
         </button>
-        <button type="button" class="btn-icon btn-primary" id="save-person-btn">
-          Save Changes
+        <button type="button" class="btn-rect btn-primary" id="save-person-btn">
+          SAVE CHANGES
         </button>
       </div>
     `;
@@ -213,35 +181,45 @@ export class DetailPanel {
     this.attachEvents(person);
   }
 
+  private formatLastContact(lastContact?: string): string {
+    if (!lastContact) return 'NO DATE LOGGED';
+    const diffMs = Date.now() - new Date(lastContact).getTime();
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (days === 0) return 'TODAY';
+    if (days === 1) return 'YESTERDAY';
+    return `${days} DAYS AGO`;
+  }
+
   private attachEvents(person: Person) {
     const body = this.container.querySelector('#detail-panel-body') as HTMLElement;
     if (!body) return;
 
-    // Segmented category picker
-    body.querySelectorAll('.segment-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const cat = (e.currentTarget as HTMLElement).getAttribute('data-cat') as Category;
-        store.updatePerson(person.id, { category: cat });
+    // Spoke Today Button
+    body.querySelector('#spoke-today-btn')?.addEventListener('click', () => {
+      store.spokeToday(person.id);
+      this.update();
+    });
+
+    // Circle picker option
+    body.querySelectorAll('#edit-circle-picker .circle-choice-option').forEach((opt) => {
+      opt.addEventListener('click', (e) => {
+        const circle = (e.currentTarget as HTMLElement).getAttribute('data-circle') as Circle;
+        store.updateCircle(person.id, circle);
+        this.update();
       });
     });
 
-    // Closeness dot slider
-    body.querySelectorAll('#edit-closeness-slider .dot-step').forEach((dot) => {
-      dot.addEventListener('click', (e) => {
-        const val = parseInt((e.currentTarget as HTMLElement).getAttribute('data-val') || '3') as any;
-        store.updatePerson(person.id, { closeness: val });
-      });
+    // Category select
+    body.querySelector('#edit-category')?.addEventListener('change', (e) => {
+      const cat = (e.target as HTMLSelectElement).value;
+      store.updatePerson(person.id, { category: cat });
     });
 
-    // Frequency & date change
-    body.querySelector('#edit-frequency')?.addEventListener('change', (e) => {
-      const freq = (e.target as HTMLSelectElement).value as ContactFrequency;
-      store.updatePerson(person.id, { contactFrequency: freq });
-    });
-
+    // Last contact date select
     body.querySelector('#edit-last-contact')?.addEventListener('change', (e) => {
       const val = (e.target as HTMLInputElement).value;
       store.updatePerson(person.id, { lastContact: val ? new Date(val).toISOString() : undefined });
+      this.update();
     });
 
     body.querySelector('#unpin-btn')?.addEventListener('click', () => {
@@ -288,44 +266,19 @@ export class DetailPanel {
 
     // Delete person
     body.querySelector('#delete-person-btn')?.addEventListener('click', () => {
-      if (confirm(`Are you sure you want to delete ${person.name}?`)) {
+      if (confirm(`Delete ${person.name}?`)) {
         store.deletePerson(person.id);
-        this.showSnackbar(`${person.name} deleted`, true);
         this.close();
       }
     });
   }
 
-  private showSnackbar(msg: string, allowUndo: boolean = true) {
-    const snackbar = document.getElementById('snackbar');
-    if (!snackbar) return;
-
-    snackbar.innerHTML = `
-      <span>${msg}</span>
-      ${allowUndo ? '<button type="button" class="undo-btn" id="snackbar-undo">Undo</button>' : ''}
-    `;
-
-    snackbar.classList.add('visible');
-
-    const undoBtn = snackbar.querySelector('#snackbar-undo');
-    if (undoBtn) {
-      undoBtn.addEventListener('click', () => {
-        store.undo();
-        snackbar.classList.remove('visible');
-      });
-    }
-
-    setTimeout(() => {
-      snackbar.classList.remove('visible');
-    }, 4000);
-  }
-
   private render() {
     this.container.innerHTML = `
-      <div class="side-panel glass-panel">
+      <div class="side-panel">
         <div class="panel-header">
-          <span class="panel-title" id="detail-panel-title">Person Details</span>
-          <button type="button" class="close-btn" id="close-detail-btn">✕</button>
+          <span class="panel-title" id="detail-panel-title">PERSON DETAILS</span>
+          <button type="button" class="btn-text" id="close-detail-btn">[✕ CLOSE]</button>
         </div>
         <div class="panel-body" id="detail-panel-body"></div>
       </div>

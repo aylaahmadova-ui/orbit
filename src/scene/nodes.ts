@@ -1,9 +1,9 @@
 import * as THREE from 'three';
 import { CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { Person } from '../types';
+import { Person, Circle } from '../types';
 import { LayoutNode } from '../lib/layout';
+import { getRecencyBrightness } from '../lib/recency';
 
-// Icon SVG path strings for procedural canvas drawing
 export const SVG_ICONS: Record<string, string> = {
   user: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z',
   heart: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
@@ -24,7 +24,6 @@ export const SVG_ICONS: Record<string, string> = {
   hash: 'M20 9h-5l1-5h-2l-1 5h-4l1-5H8l-1 5H2v2h5l-1 5H1l-1 2h5l-1 5h2l1-5h4l-1 5h2l1-5h5v-2h-5l1-5h6V9z'
 };
 
-// Procedural Halo texture
 function createHaloTexture(): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
@@ -53,8 +52,7 @@ const haloMaterial = new THREE.SpriteMaterial({
   depthWrite: false
 });
 
-// Procedural Node Disc texture with rim light & SVG icon
-function createNodeTexture(iconKey: string, isMe: boolean = false, strength: number = 0.5): THREE.CanvasTexture {
+function createNodeTexture(iconKey: string, isMe: boolean = false, brightness: number = 1.0): THREE.CanvasTexture {
   const canvas = document.createElement('canvas');
   canvas.width = 256;
   canvas.height = 256;
@@ -63,14 +61,13 @@ function createNodeTexture(iconKey: string, isMe: boolean = false, strength: num
   const center = 128;
   const radius = 108;
 
-  // 1. Dark glassy disc fill with soft inner glow
   const discGrad = ctx.createRadialGradient(center, center, 0, center, center, radius);
   if (isMe) {
     discGrad.addColorStop(0, '#ff3d55');
     discGrad.addColorStop(0.7, '#a81e34');
     discGrad.addColorStop(1, '#0c0206');
   } else {
-    discGrad.addColorStop(0, 'rgba(45, 12, 22, 0.95)');
+    discGrad.addColorStop(0, `rgba(45, 12, 22, ${0.7 + brightness * 0.28})`);
     discGrad.addColorStop(0.8, 'rgba(20, 4, 9, 0.98)');
     discGrad.addColorStop(1, 'rgba(8, 1, 3, 1)');
   }
@@ -80,34 +77,32 @@ function createNodeTexture(iconKey: string, isMe: boolean = false, strength: num
   ctx.fillStyle = discGrad;
   ctx.fill();
 
-  // 2. Rim light highlight (brighter on top-left)
   const rimGrad = ctx.createLinearGradient(center - radius, center - radius, center + radius, center + radius);
   if (isMe) {
     rimGrad.addColorStop(0, '#ffffff');
     rimGrad.addColorStop(0.5, '#ff7686');
     rimGrad.addColorStop(1, 'rgba(168, 30, 52, 0.3)');
   } else {
-    rimGrad.addColorStop(0, `rgba(255, 118, 134, ${0.4 + strength * 0.5})`);
-    rimGrad.addColorStop(0.4, `rgba(255, 61, 85, ${0.2 + strength * 0.4})`);
+    rimGrad.addColorStop(0, `rgba(255, 118, 134, ${0.3 + brightness * 0.7})`);
+    rimGrad.addColorStop(0.4, `rgba(255, 61, 85, ${0.2 + brightness * 0.5})`);
     rimGrad.addColorStop(1, 'rgba(50, 10, 20, 0.2)');
   }
 
-  ctx.lineWidth = isMe ? 8 : Math.max(3, 4 + strength * 4);
+  ctx.lineWidth = isMe ? 8 : Math.max(3, 3 + brightness * 4);
   ctx.strokeStyle = rimGrad;
   ctx.stroke();
 
-  // 3. Draw SVG Line Icon inside disc
   const pathStr = SVG_ICONS[iconKey] || SVG_ICONS['user'];
   const path = new Path2D(pathStr);
 
   ctx.save();
   ctx.translate(center, center);
   ctx.scale(3.5, 3.5);
-  ctx.translate(-12, -12); // center 24x24 icon
+  ctx.translate(-12, -12);
 
-  ctx.fillStyle = isMe ? '#ffffff' : `rgba(255, 217, 221, ${0.7 + strength * 0.3})`;
+  ctx.fillStyle = isMe ? '#ffffff' : `rgba(255, 217, 221, ${0.5 + brightness * 0.5})`;
   ctx.shadowColor = isMe ? '#ffffff' : '#ff3d55';
-  ctx.shadowBlur = isMe ? 12 : 6;
+  ctx.shadowBlur = isMe ? 12 : 4 + brightness * 6;
   ctx.fill(path);
   ctx.restore();
 
@@ -148,7 +143,6 @@ export class NodeManager {
         this.nodeGroupsMap.set(id, groupObj);
         this.scene.add(groupObj.group);
       } else {
-        // Update label text if person name changed
         if (layoutNode.isMe) {
           groupObj.labelDiv.textContent = meName;
         } else if (layoutNode.person) {
@@ -156,7 +150,6 @@ export class NodeManager {
         }
       }
 
-      // Update position from layout
       const x = layoutNode.x || 0;
       const y = layoutNode.y || 0;
       const z = layoutNode.z || 0;
@@ -164,7 +157,6 @@ export class NodeManager {
       groupObj.group.position.set(x, y, z);
     });
 
-    // Remove deleted nodes
     this.nodeGroupsMap.forEach((groupObj, id) => {
       if (!activeIds.has(id)) {
         this.scene.remove(groupObj.group);
@@ -177,17 +169,23 @@ export class NodeManager {
   private createNodeGroup(layoutNode: LayoutNode, meName: string): NodeMeshGroup {
     const group = new THREE.Group();
     const isMe = layoutNode.isMe;
-    const strength = layoutNode.strength;
-    const iconKey = isMe ? 'user' : layoutNode.person?.icon || 'user';
+    const person = layoutNode.person;
+    const circle: Circle = layoutNode.circle || 'regular';
+    const brightness = isMe ? 1.0 : getRecencyBrightness(person?.lastContact);
+    const iconKey = isMe ? 'user' : person?.icon || 'user';
 
-    // Base size scaling: ME = 32, Strength 1 = 28, Strength 0 = 16
-    const discRadius = isMe ? 32 : 16 + strength * 12;
+    // Base size scaling by circle: ME = 32, Core = 28, Close = 24, Regular = 20, Distant = 16
+    let discRadius = 20;
+    if (isMe) discRadius = 32;
+    else if (circle === 'core') discRadius = 28;
+    else if (circle === 'close') discRadius = 24;
+    else if (circle === 'regular') discRadius = 20;
+    else if (circle === 'distant') discRadius = 16;
 
-    // 1. Node Disc Mesh
-    const cacheKey = `${iconKey}_${isMe}_${strength.toFixed(2)}`;
+    const cacheKey = `${iconKey}_${isMe}_${circle}_${brightness.toFixed(2)}`;
     let texture = this.textureCache.get(cacheKey);
     if (!texture) {
-      texture = createNodeTexture(iconKey, isMe, strength);
+      texture = createNodeTexture(iconKey, isMe, brightness);
       this.textureCache.set(cacheKey, texture);
     }
 
@@ -199,27 +197,24 @@ export class NodeManager {
       side: THREE.DoubleSide
     });
     const discMesh = new THREE.Mesh(discGeo, discMat);
-    discMesh.userData = { id: layoutNode.id, isMe, isNodeDisc: true };
+    discMesh.userData = { id: layoutNode.id, isMe, category: person?.category };
     group.add(discMesh);
 
-    // Make disc face the camera dynamically or stay billboarded
     discMesh.onBeforeRender = (renderer, scene, camera) => {
       discMesh.quaternion.copy(camera.quaternion);
     };
 
-    // 2. Halo Sprite
-    const haloScale = isMe ? 180 : discRadius * (3.5 + strength * 1.5);
+    const haloScale = isMe ? 180 : discRadius * (3.0 + brightness * 1.5);
     const haloSprite = new THREE.Sprite(haloMaterial.clone());
     haloSprite.scale.set(haloScale, haloScale, 1);
-    (haloSprite.material as THREE.SpriteMaterial).opacity = isMe ? 0.95 : 0.4 + strength * 0.4;
+    (haloSprite.material as THREE.SpriteMaterial).opacity = isMe ? 0.95 : 0.25 + brightness * 0.55;
     group.add(haloSprite);
 
-    // 3. CSS2D Label
     const labelDiv = document.createElement('div');
     labelDiv.className = isMe
       ? 'node-label is-me'
-      : `node-label category-${layoutNode.person?.category || 'friend'}`;
-    labelDiv.textContent = isMe ? meName : layoutNode.person?.name || '';
+      : `node-label circle-${circle}`;
+    labelDiv.textContent = isMe ? meName : person?.name || '';
 
     const labelObject = new CSS2DObject(labelDiv);
     labelObject.position.set(0, -discRadius * 0.7, 0);
@@ -242,7 +237,6 @@ export class NodeManager {
       const labelDiv = nodeGroup.labelDiv;
 
       if (!hoveredId && !connectedIds) {
-        // Reset state
         labelDiv.classList.remove('is-dimmed', 'is-highlighted');
         (nodeGroup.discMesh.material as THREE.MeshBasicMaterial).opacity = 1.0;
         (nodeGroup.haloSprite.material as THREE.SpriteMaterial).opacity = nodeGroup.isMe ? 0.95 : 0.6;
@@ -270,8 +264,8 @@ export class NodeManager {
     this.nodeGroupsMap.forEach((nodeGroup, id) => {
       if (nodeGroup.isMe) return;
 
-      const category = nodeGroup.group.userData.category;
-      if (hiddenCategories.has(category)) {
+      const category = nodeGroup.discMesh.userData.category;
+      if (category && hiddenCategories.has(category)) {
         nodeGroup.group.visible = false;
         nodeGroup.labelDiv.style.display = 'none';
       } else {

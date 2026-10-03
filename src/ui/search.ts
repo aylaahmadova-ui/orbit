@@ -34,7 +34,6 @@ export class SearchModal {
 
   private setupShortcut() {
     window.addEventListener('keydown', (e) => {
-      // Shortcut '/'
       if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement).tagName)) {
         e.preventDefault();
         this.open();
@@ -50,11 +49,15 @@ export class SearchModal {
     const q = query.toLowerCase().trim();
 
     const matches = state.people.filter(
-      (p) => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q) || p.notes?.toLowerCase().includes(q)
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.circle.toLowerCase().includes(q) ||
+        (p.category && p.category.toLowerCase().includes(q)) ||
+        p.notes?.toLowerCase().includes(q)
     );
 
     if (matches.length === 0) {
-      list.innerHTML = '<div style="padding: 16px; text-align: center; font-size: 12px; color: #a8636e;">No people found matching query</div>';
+      list.innerHTML = '<div style="padding: 16px; text-align: center; font-size: 10px; color: #a8636e;">NO MATCHES FOUND</div>';
       return;
     }
 
@@ -63,10 +66,12 @@ export class SearchModal {
         (p) => `
         <div class="search-item" data-id="${p.id}">
           <div>
-            <div style="font-weight: 700; color: #ffffff; font-size: 13px;">${p.name}</div>
-            <div style="font-size: 11px; color: #e4a2aa; text-transform: uppercase;">${p.category.replace('_', ' ')} • Closeness ${p.closeness}/5</div>
+            <div style="font-weight: 700; color: #ffffff; font-size: 12px;">${p.name.toUpperCase()}</div>
+            <div style="font-size: 10px; color: #e4a2aa;">
+              CIRCLE [${p.circle.toUpperCase()}] ${p.category ? `• ${p.category.toUpperCase()}` : ''}
+            </div>
           </div>
-          <span style="font-size: 11px; color: #ff7686; font-weight: 700;">Focus →</span>
+          <span style="font-size: 10px; color: #ff7686; font-weight: 700;">FOCUS →</span>
         </div>
       `
       )
@@ -85,11 +90,11 @@ export class SearchModal {
 
   private render() {
     this.container.innerHTML = `
-      <div class="search-modal glass-panel" id="search-modal">
-        <div style="padding: 14px 18px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,61,85,0.2);">
-          <span style="font-size: 16px; color: #ff7686;">🔍</span>
-          <input type="text" id="search-input" class="form-input" placeholder="Search people by name, category, or notes... (Press Esc to close)" style="border: none; background: transparent; padding: 0; font-size: 14px;" />
-          <button type="button" class="close-btn" id="close-search-btn">✕</button>
+      <div class="search-modal" id="search-modal">
+        <div style="padding: 12px 16px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid rgba(255,61,85,0.3);">
+          <span style="font-size: 12px; color: #ff7686;">SEARCH [/]</span>
+          <input type="text" id="search-input" class="form-input" placeholder="Type name, circle, or category..." style="border: none; background: transparent; padding: 0; font-size: 12px;" />
+          <button type="button" class="btn-text" id="close-search-btn">[✕ ESC]</button>
         </div>
         <div class="search-results-list" id="search-results-list"></div>
       </div>

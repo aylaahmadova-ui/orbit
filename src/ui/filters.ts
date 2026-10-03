@@ -1,5 +1,3 @@
-import { Category } from '../types';
-
 export type CategoryFilterCallback = (hiddenCategories: Set<string>) => void;
 
 export class CategoryFilterUI {
@@ -16,7 +14,7 @@ export class CategoryFilterUI {
     this.onChangeCallback = cb;
   }
 
-  private toggleCategory(cat: Category) {
+  private toggleCategory(cat: string) {
     if (this.hiddenCategories.has(cat)) {
       this.hiddenCategories.delete(cat);
     } else {
@@ -29,33 +27,45 @@ export class CategoryFilterUI {
     }
   }
 
-  private render() {
-    const categories: Category[] = ['partner', 'family', 'close_friend', 'friend', 'colleague', 'acquaintance'];
+  public updateCounts(people: any[]) {
+    this.render(people);
+  }
+
+  private render(people: any[] = []) {
+    const categories = ['partner', 'family', 'friend', 'colleague', 'acquaintance'];
+
+    // Calculate count per category
+    const counts: Record<string, number> = {};
+    categories.forEach((c) => (counts[c] = 0));
+    people.forEach((p) => {
+      if (p.category && counts[p.category] !== undefined) {
+        counts[p.category]++;
+      }
+    });
 
     this.container.innerHTML = `
-      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+      <div style="display: flex; flex-direction: column; gap: 4px;">
+        <div class="hud-label" style="margin-bottom: 4px;">CATEGORIES</div>
         ${categories
           .map((cat) => {
             const isHidden = this.hiddenCategories.has(cat);
+            const count = counts[cat] || 0;
             return `
-            <button type="button" class="btn-icon category-filter-btn" data-cat="${cat}" style="padding: 5px 10px; font-size: 11px; opacity: ${
-              isHidden ? 0.35 : 1
-            }; border-color: ${isHidden ? 'rgba(255,61,85,0.15)' : 'rgba(255,118,134,0.5)'};">
-              <span style="width: 6px; height: 6px; border-radius: 50%; background: ${
-                isHidden ? '#a8636e' : '#ff7686'
-              }; display: inline-block;"></span>
-              ${cat.replace('_', ' ')}
-            </button>
+            <div class="category-legend-item ${isHidden ? 'is-hidden' : ''}" data-cat="${cat}">
+              <span class="legend-dot"></span>
+              <span class="legend-name">${cat.toUpperCase()}</span>
+              <span class="legend-count">[${count}]</span>
+            </div>
           `;
           })
           .join('')}
       </div>
     `;
 
-    this.container.querySelectorAll('.category-filter-btn').forEach((btn) => {
-      btn.addEventListener('click', (e) => {
-        const cat = (e.currentTarget as HTMLElement).getAttribute('data-cat') as Category;
-        this.toggleCategory(cat);
+    this.container.querySelectorAll('.category-legend-item').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        const cat = (e.currentTarget as HTMLElement).getAttribute('data-cat');
+        if (cat) this.toggleCategory(cat);
       });
     });
   }
