@@ -1,7 +1,7 @@
 import { AppState, Person, Link, AppSettings, Circle } from '../types';
 import { isFading } from '../lib/recency';
+import { auth } from './auth';
 
-const STORAGE_KEY = 'orbit_app_state_v2'; // Upgraded storage key
 const LEGACY_STORAGE_KEY = 'orbit_app_state_v1';
 const MAX_UNDO_STACK = 30;
 
@@ -18,7 +18,7 @@ export const SAMPLE_PEOPLE: Person[] = [
     name: 'Elena Vance',
     circle: 'core',
     drift: 0.4,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), // 3 hours ago
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(),
     category: 'partner',
     icon: 'heart',
     notes: 'Architect & life partner. Favorite coffee: Flat White.'
@@ -58,7 +58,7 @@ export const SAMPLE_PEOPLE: Person[] = [
     name: 'Sophia Patel',
     circle: 'close',
     drift: 0.5,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 40).toISOString(), // Fading! (>30 days)
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 40).toISOString(),
     category: 'close_friend',
     icon: 'smile',
     notes: 'Hiking trips & photography enthusiast.'
@@ -74,16 +74,6 @@ export const SAMPLE_PEOPLE: Person[] = [
     notes: 'Bassist in local jazz band. Vinyl collector.'
   },
   {
-    id: 'p-fam-3',
-    name: 'Grandma Rosa',
-    circle: 'close',
-    drift: 0.8,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45).toISOString(), // Fading!
-    category: 'family',
-    icon: 'sun',
-    notes: 'Bakes the best cinnamon pastries.'
-  },
-  {
     id: 'p-friend-1',
     name: 'Chloe Bennett',
     circle: 'regular',
@@ -92,16 +82,6 @@ export const SAMPLE_PEOPLE: Person[] = [
     category: 'friend',
     icon: 'compass',
     notes: 'Book club buddy & fellow traveler.'
-  },
-  {
-    id: 'p-friend-2',
-    name: 'David Kim',
-    circle: 'regular',
-    drift: 0.5,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
-    category: 'friend',
-    icon: 'coffee',
-    notes: 'Bouldering gym regular.'
   },
   {
     id: 'p-colleague-1',
@@ -114,26 +94,6 @@ export const SAMPLE_PEOPLE: Person[] = [
     notes: 'Lead Product Manager on project Orbit.'
   },
   {
-    id: 'p-colleague-2',
-    name: 'Vikram Singh',
-    circle: 'regular',
-    drift: 0.6,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    category: 'colleague',
-    icon: 'code',
-    notes: 'Senior Backend Systems Engineer.'
-  },
-  {
-    id: 'p-friend-3',
-    name: 'Aisha Al-Mansoor',
-    circle: 'regular',
-    drift: 0.8,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
-    category: 'friend',
-    icon: 'globe',
-    notes: 'Met during summer exchange in Berlin.'
-  },
-  {
     id: 'p-colleague-3',
     name: 'Emily Thorn',
     circle: 'distant',
@@ -142,52 +102,19 @@ export const SAMPLE_PEOPLE: Person[] = [
     category: 'colleague',
     icon: 'layers',
     notes: 'UX Researcher.'
-  },
-  {
-    id: 'p-acq-1',
-    name: 'Liam Gallagher',
-    circle: 'distant',
-    drift: 0.4,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(),
-    category: 'acquaintance',
-    icon: 'user',
-    notes: 'Neighbor from 4th floor.'
-  },
-  {
-    id: 'p-acq-2',
-    name: 'Hannah Abbott',
-    circle: 'distant',
-    drift: 0.6,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 120).toISOString(),
-    category: 'acquaintance',
-    icon: 'hash',
-    notes: 'Met at regional tech conference.'
-  },
-  {
-    id: 'p-acq-3',
-    name: 'Julian Vance',
-    circle: 'distant',
-    drift: 0.8,
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 80).toISOString(),
-    category: 'acquaintance',
-    icon: 'user',
-    notes: 'Elena’s cousin visiting from Montreal.'
   }
 ];
 
 export const SAMPLE_LINKS: Link[] = [
   { id: 'l1', a: 'p-fam-1', b: 'p-fam-2' },
-  { id: 'l2', a: 'p-fam-1', b: 'p-fam-3' },
   { id: 'l3', a: 'p-partner', b: 'p-fam-1' },
   { id: 'l4', a: 'p-close-1', b: 'p-close-2' },
-  { id: 'l5', a: 'p-colleague-1', b: 'p-colleague-2' },
-  { id: 'l6', a: 'p-colleague-1', b: 'p-colleague-3' },
-  { id: 'l7', a: 'p-partner', b: 'p-acq-3' }
+  { id: 'l5', a: 'p-colleague-1', b: 'p-colleague-3' }
 ];
 
-export function getInitialState(): AppState {
+export function getInitialState(userName: string = 'YOU'): AppState {
   return {
-    me: { name: 'YOU' },
+    me: { name: userName.toUpperCase() },
     people: JSON.parse(JSON.stringify(SAMPLE_PEOPLE)),
     links: JSON.parse(JSON.stringify(SAMPLE_LINKS)),
     settings: { ...INITIAL_SETTINGS }
@@ -208,6 +135,13 @@ class StateStore {
 
   public getState(): AppState {
     return this.state;
+  }
+
+  public switchUserSession() {
+    this.state = this.loadFromStorage() || getInitialState(auth.getCurrentUser()?.username || 'YOU');
+    this.undoStack = [];
+    this.redoStack = [];
+    this.notify();
   }
 
   public subscribe(listener: Listener): () => void {
@@ -370,7 +304,7 @@ class StateStore {
 
   public restoreSampleData(): void {
     this.recordState();
-    const init = getInitialState();
+    const init = getInitialState(auth.getCurrentUser()?.username || 'YOU');
     this.state.people = init.people;
     this.state.links = init.links;
     this.notify();
@@ -392,7 +326,7 @@ class StateStore {
 
       this.recordState();
       this.state = {
-        me: { name: 'YOU' },
+        me: { name: auth.getCurrentUser()?.username.toUpperCase() || 'YOU' },
         people: parsed.people.map((p: any) => this.migratePersonData(p)),
         links: Array.isArray(parsed.links) ? parsed.links : [],
         settings: {
@@ -408,7 +342,6 @@ class StateStore {
   }
 
   private migratePersonData(p: any): Person {
-    // Legacy migration: closeness 5 -> core, 4 -> close, 3 -> regular, 1-2 -> distant
     let circle: Circle = p.circle || 'regular';
     if (p.closeness !== undefined && !p.circle) {
       if (p.closeness >= 5) circle = 'core';
@@ -430,34 +363,42 @@ class StateStore {
     };
   }
 
+  private getStorageKey(): string {
+    const user = auth.getCurrentUser();
+    return user ? `orbit_user_data_${user.id}` : 'orbit_guest_data';
+  }
+
   private saveToStorage(): void {
+    if (typeof localStorage === 'undefined') return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      localStorage.setItem(this.getStorageKey(), JSON.stringify(this.state));
     } catch (e) {
       console.warn('Failed to save Orbit state to localStorage:', e);
     }
   }
 
   private loadFromStorage(): AppState | null {
+    if (typeof localStorage === 'undefined') return null;
     try {
-      // 1. Check v2 storage
-      const item = localStorage.getItem(STORAGE_KEY);
+      const key = this.getStorageKey();
+      const item = localStorage.getItem(key);
       if (item) {
         const parsed = JSON.parse(item);
         if (parsed && Array.isArray(parsed.people)) {
           parsed.people = parsed.people.map((p: any) => this.migratePersonData(p));
+          parsed.me = { name: auth.getCurrentUser()?.username.toUpperCase() || 'YOU' };
           return parsed;
         }
       }
 
-      // 2. Check legacy v1 storage and migrate
+      // Fallback check for legacy storage
       const legacyItem = localStorage.getItem(LEGACY_STORAGE_KEY);
       if (legacyItem) {
         const legacyParsed = JSON.parse(legacyItem);
         if (legacyParsed && Array.isArray(legacyParsed.people)) {
           const migratedPeople = legacyParsed.people.map((p: any) => this.migratePersonData(p));
           return {
-            me: { name: 'YOU' },
+            me: { name: auth.getCurrentUser()?.username.toUpperCase() || 'YOU' },
             people: migratedPeople,
             links: Array.isArray(legacyParsed.links) ? legacyParsed.links : [],
             settings: { ...INITIAL_SETTINGS, ...(legacyParsed.settings || {}) }

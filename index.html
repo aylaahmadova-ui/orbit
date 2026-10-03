@@ -24,17 +24,19 @@
       <!-- Top Left: Brand Title, Count Readout, Camera Instrument Coordinates -->
       <div class="corner-top-left">
         <div class="brand-title">ORBIT</div>
+        <div class="hud-readout" id="user-display-readout">VAULT: GUEST</div>
         <div class="hud-readout" id="people-count-readout">0 CONNECTIONS</div>
         <div class="hud-readout" id="camera-instrument-readout" style="color: #ff7686; margin-top: 2px;">
           AZ 0° EL 0° DIST 0
         </div>
       </div>
 
-      <!-- Top Right: Plain Text Actions -->
+      <!-- Top Right: Plain Text Actions & Logout Link -->
       <div class="corner-top-right">
         <button type="button" class="btn-text" id="btn-search">SEARCH [/]</button>
         <button type="button" class="btn-text" id="btn-reset-cam">OVERVIEW</button>
         <button type="button" class="btn-text" id="btn-settings">SETTINGS</button>
+        <button type="button" class="btn-text" id="btn-auth-action" style="color: #ff7686;">[SIGN IN]</button>
       </div>
 
       <!-- Bottom Left: Category Legend & Quiet Fading Connections List -->
@@ -59,7 +61,8 @@
       <!-- Quiet Toast Notification -->
       <div id="toast" class="toast"></div>
 
-      <!-- Side Panels & Modals Mount Points -->
+      <!-- Side Panels, Auth Overlay & Modals Mount Points -->
+      <div id="auth-container"></div>
       <div id="detail-panel-container"></div>
       <div id="add-person-container"></div>
       <div id="search-container"></div>

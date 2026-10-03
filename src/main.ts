@@ -7,12 +7,14 @@ import { AtmosphereManager } from './scene/atmosphere';
 import { OrbitRingsManager } from './scene/rings';
 import { InteractionManager } from './scene/interaction';
 import { store } from './state/store';
+import { auth } from './state/auth';
 import { DetailPanel } from './ui/panel';
 import { AddPersonModal } from './ui/addPerson';
 import { SearchModal } from './ui/search';
 import { CategoryFilterUI } from './ui/filters';
 import { SettingsModal } from './ui/settings';
 import { FadingListUI } from './ui/fading';
+import { AuthViewUI } from './ui/authView';
 import { Circle } from './types';
 
 class OrbitApp {
@@ -30,6 +32,7 @@ class OrbitApp {
   private categoryFilters: CategoryFilterUI;
   private settingsModal: SettingsModal;
   private fadingList: FadingListUI;
+  private authView: AuthViewUI;
 
   constructor() {
     const canvasContainer = document.getElementById('canvas-container')!;
@@ -54,10 +57,12 @@ class OrbitApp {
     this.categoryFilters = new CategoryFilterUI(document.getElementById('category-filters-container')!);
     this.settingsModal = new SettingsModal(document.getElementById('settings-container')!);
     this.fadingList = new FadingListUI(document.getElementById('fading-list-container')!);
+    this.authView = new AuthViewUI(document.getElementById('auth-container')!);
 
     this.setupInteractions();
     this.setupPhysicsTick();
     this.setupStoreSubscription();
+    this.setupAuthSubscription();
     this.setupToolbarEvents();
 
     this.onStoreStateChange(store.getState());
@@ -118,6 +123,25 @@ class OrbitApp {
     });
   }
 
+  private setupAuthSubscription() {
+    auth.subscribe((user) => {
+      const authBtn = document.getElementById('btn-auth-action');
+      const userReadout = document.getElementById('user-display-readout');
+
+      if (user) {
+        this.authView.close();
+        if (authBtn) authBtn.textContent = '[LOGOUT]';
+        if (userReadout) userReadout.textContent = `VAULT: ${user.username.toUpperCase()}`;
+        store.switchUserSession();
+      } else {
+        this.authView.open('signin');
+        if (authBtn) authBtn.textContent = '[SIGN IN]';
+        if (userReadout) userReadout.textContent = 'VAULT: GUEST';
+        store.switchUserSession();
+      }
+    });
+  }
+
   private onStoreStateChange(state: any) {
     this.layout.setPhysicsEnabled(state.settings.physics);
     this.layout.updateData(state.people, state.links);
@@ -126,7 +150,6 @@ class OrbitApp {
     this.nodeManager.updateNodes(nodesMap, state.me.name);
     this.edgeManager.updateEdges(nodesMap, state.links);
 
-    // Update 3D Orbit Ring circle counts
     const circleCounts: Record<Circle, number> = { core: 0, close: 0, regular: 0, distant: 0 };
     state.people.forEach((p: any) => {
       if (circleCounts[p.circle as Circle] !== undefined) {
@@ -165,6 +188,17 @@ class OrbitApp {
 
     document.getElementById('btn-settings')?.addEventListener('click', () => {
       this.settingsModal.open();
+    });
+
+    document.getElementById('btn-auth-action')?.addEventListener('click', () => {
+      const user = auth.getCurrentUser();
+      if (user) {
+        if (confirm(`Sign out of account "${user.username}"?`)) {
+          auth.signOut();
+        }
+      } else {
+        this.authView.open('signin');
+      }
     });
   }
 

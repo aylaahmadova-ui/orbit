@@ -492,3 +492,53 @@ html, body {
   display: flex;
   gap: 10px;
 }
+
+/* Auth Overlay View */
+.auth-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 100;
+  background: rgba(8, 2, 5, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s;
+}
+
+.auth-overlay.open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.auth-card {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: #0a0205;
+  border: 1px solid var(--border-color);
+  padding: 32px 28px;
+  box-shadow: 0 0 40px rgba(255, 61, 85, 0.2);
+}
+
+.auth-error-banner {
+  background: rgba(255, 61, 85, 0.15);
+  border: 1px solid rgba(255, 61, 85, 0.5);
+  color: #ff7686;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 8px 12px;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.btn-text.active-tab {
+  color: #ffffff;
+  border-bottom: 2px solid var(--color-red-primary);
+}
