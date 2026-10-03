@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbit — 3D Personal Relationship Web</title>
+    <meta name="description" content="A local-first interactive 3D relationship network map visualizing personal connections, closeness, and strength." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/styles/theme.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- 3D Three.js & CSS2D canvas container -->
+      <div id="canvas-container"></div>
+
+      <!-- HUD Header -->
+      <div class="hud-header">
+        <div>
+          <div class="brand-title">ORBIT</div>
+          <div style="display: flex; gap: 8px; align-items: center; margin-top: 2px;">
+            <span class="brand-badge">3D NETWORK</span>
+            <span style="font-size: 11px; color: #a8636e;" id="people-count-readout">0 People</span>
+          </div>
+        </div>
+
+        <!-- Category Filters -->
+        <div id="category-filters-container" style="margin-left: 20px;"></div>
+      </div>
+
+      <!-- Floating Toolbar -->
+      <div class="floating-toolbar glass-panel">
+        <button type="button" class="btn-icon btn-primary" id="btn-add-person">
+          <span style="font-size: 16px;">＋</span> Add Person <span style="font-size: 10px; opacity: 0.7;">(N)</span>
+        </button>
+
+        <button type="button" class="btn-icon" id="btn-search">
+          🔍 Search <span style="font-size: 10px; opacity: 0.7;">(/)</span>
+        </button>
+
+        <button type="button" class="btn-icon" id="btn-reset-cam">
+          🎯 Overview
+        </button>
+
+        <button type="button" class="btn-icon" id="btn-settings">
+          ⚙️ Settings
+        </button>
+      </div>
+
+      <!-- Tooltip -->
+      <div id="tooltip" class="glass-panel">
+        <div class="tooltip-name"></div>
+        <div class="tooltip-meta"></div>
+      </div>
+
+      <!-- Snackbar for Undo -->
+      <div id="snackbar" class="snackbar"></div>
+
+      <!-- UI Modal & Panel Mount Points -->
+      <div id="detail-panel-container"></div>
+      <div id="add-person-container"></div>
+      <div id="search-container"></div>
+      <div id="settings-container"></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
