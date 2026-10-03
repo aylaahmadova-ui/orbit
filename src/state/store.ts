@@ -1,6 +1,8 @@
-import { AppState, Person, Link, AppSettings, Category } from '../types';
+import { AppState, Person, Link, AppSettings, Circle } from '../types';
+import { isFading } from '../lib/recency';
 
-const STORAGE_KEY = 'orbit_app_state_v1';
+const STORAGE_KEY = 'orbit_app_state_v2'; // Upgraded storage key
+const LEGACY_STORAGE_KEY = 'orbit_app_state_v1';
 const MAX_UNDO_STACK = 30;
 
 export const INITIAL_SETTINGS: AppSettings = {
@@ -14,236 +16,173 @@ export const SAMPLE_PEOPLE: Person[] = [
   {
     id: 'p-partner',
     name: 'Elena Vance',
+    circle: 'core',
+    drift: 0.4,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 3).toISOString(), // 3 hours ago
     category: 'partner',
-    closeness: 5,
-    contactFrequency: 'daily',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
     icon: 'heart',
-    notes: 'Architect & life partner. Favorite coffee: Flat White.',
-    birthday: '1995-04-12',
-    tags: ['Life', 'Core', 'Design']
+    notes: 'Architect & life partner. Favorite coffee: Flat White.'
   },
   {
     id: 'p-fam-1',
     name: 'Maya (Sister)',
+    circle: 'core',
+    drift: 0.6,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 20).toISOString(),
     category: 'family',
-    closeness: 5,
-    contactFrequency: 'daily',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 18).toISOString(),
     icon: 'user-check',
-    notes: 'Younger sister in Seattle. Working on her master’s thesis.',
-    birthday: '1998-09-24',
-    tags: ['Family', 'Seattle']
-  },
-  {
-    id: 'p-fam-2',
-    name: 'Arthur (Dad)',
-    category: 'family',
-    closeness: 4,
-    contactFrequency: 'weekly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    icon: 'home',
-    notes: 'Enjoys woodworking and antique watches.',
-    tags: ['Family', 'Home']
-  },
-  {
-    id: 'p-fam-3',
-    name: 'Grandma Rosa',
-    category: 'family',
-    closeness: 4,
-    contactFrequency: 'weekly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-    icon: 'sun',
-    notes: 'Bakes the best cinnamon pastries.',
-    tags: ['Family']
+    notes: 'Younger sister in Seattle. Working on her thesis.'
   },
   {
     id: 'p-close-1',
     name: 'Marcus Chen',
+    circle: 'core',
+    drift: 0.5,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
     category: 'close_friend',
-    closeness: 5,
-    contactFrequency: 'daily',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 1).toISOString(),
     icon: 'zap',
-    notes: 'Co-founder of old college startup. Tech & gaming buddy.',
-    tags: ['Gaming', 'Tech', 'College']
+    notes: 'Co-founder of old college startup. Tech & gaming buddy.'
+  },
+  {
+    id: 'p-fam-2',
+    name: 'Arthur (Dad)',
+    circle: 'close',
+    drift: 0.3,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
+    category: 'family',
+    icon: 'home',
+    notes: 'Enjoys woodworking and antique watches.'
   },
   {
     id: 'p-close-2',
     name: 'Sophia Patel',
+    circle: 'close',
+    drift: 0.5,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 40).toISOString(), // Fading! (>30 days)
     category: 'close_friend',
-    closeness: 4,
-    contactFrequency: 'weekly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 4).toISOString(),
     icon: 'smile',
-    notes: 'Hiking trips & photography enthusiast.',
-    tags: ['Outdoors', 'Photography']
+    notes: 'Hiking trips & photography enthusiast.'
   },
   {
     id: 'p-close-3',
     name: 'Lucas Dupont',
+    circle: 'close',
+    drift: 0.7,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
     category: 'close_friend',
-    closeness: 4,
-    contactFrequency: 'weekly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 6).toISOString(),
     icon: 'music',
-    notes: 'Bassist in local jazz band. Vinyl collector.',
-    tags: ['Music', 'Art']
+    notes: 'Bassist in local jazz band. Vinyl collector.'
+  },
+  {
+    id: 'p-fam-3',
+    name: 'Grandma Rosa',
+    circle: 'close',
+    drift: 0.8,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45).toISOString(), // Fading!
+    category: 'family',
+    icon: 'sun',
+    notes: 'Bakes the best cinnamon pastries.'
   },
   {
     id: 'p-friend-1',
     name: 'Chloe Bennett',
-    category: 'friend',
-    closeness: 3,
-    contactFrequency: 'monthly',
+    circle: 'regular',
+    drift: 0.3,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 12).toISOString(),
+    category: 'friend',
     icon: 'compass',
-    notes: 'Book club buddy & fellow traveler.',
-    tags: ['Books', 'Travel']
+    notes: 'Book club buddy & fellow traveler.'
   },
   {
     id: 'p-friend-2',
     name: 'David Kim',
-    category: 'friend',
-    closeness: 3,
-    contactFrequency: 'monthly',
+    circle: 'regular',
+    drift: 0.5,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 20).toISOString(),
+    category: 'friend',
     icon: 'coffee',
-    notes: 'Bouldering gym regular.',
-    tags: ['Climbing', 'Fitness']
-  },
-  {
-    id: 'p-friend-3',
-    name: 'Aisha Al-Mansoor',
-    category: 'friend',
-    closeness: 3,
-    contactFrequency: 'monthly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
-    icon: 'globe',
-    notes: 'Met during summer exchange in Berlin.',
-    tags: ['Travel', 'Languages']
-  },
-  {
-    id: 'p-friend-4',
-    name: 'Oliver Wright',
-    category: 'friend',
-    closeness: 3,
-    contactFrequency: 'yearly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 45).toISOString(),
-    icon: 'film',
-    notes: 'Indie cinema fan.',
-    tags: ['Film', 'Culture']
+    notes: 'Bouldering gym regular.'
   },
   {
     id: 'p-colleague-1',
     name: 'Sarah Jenkins',
-    category: 'colleague',
-    closeness: 3,
-    contactFrequency: 'weekly',
+    circle: 'regular',
+    drift: 0.4,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
+    category: 'colleague',
     icon: 'briefcase',
-    notes: 'Lead Product Manager on project Orbit.',
-    tags: ['Work', 'Product']
+    notes: 'Lead Product Manager on project Orbit.'
   },
   {
     id: 'p-colleague-2',
     name: 'Vikram Singh',
-    category: 'colleague',
-    closeness: 3,
-    contactFrequency: 'weekly',
+    circle: 'regular',
+    drift: 0.6,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
+    category: 'colleague',
     icon: 'code',
-    notes: 'Senior Backend Systems Engineer.',
-    tags: ['Work', 'Engineering']
+    notes: 'Senior Backend Systems Engineer.'
+  },
+  {
+    id: 'p-friend-3',
+    name: 'Aisha Al-Mansoor',
+    circle: 'regular',
+    drift: 0.8,
+    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 15).toISOString(),
+    category: 'friend',
+    icon: 'globe',
+    notes: 'Met during summer exchange in Berlin.'
   },
   {
     id: 'p-colleague-3',
     name: 'Emily Thorn',
-    category: 'colleague',
-    closeness: 2,
-    contactFrequency: 'monthly',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 14).toISOString(),
-    icon: 'layers',
-    notes: 'UX Researcher.',
-    tags: ['Work', 'Design']
-  },
-  {
-    id: 'p-colleague-4',
-    name: 'Gabriel Rossi',
-    category: 'colleague',
-    closeness: 2,
-    contactFrequency: 'yearly',
+    circle: 'distant',
+    drift: 0.3,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 60).toISOString(),
-    icon: 'pie-chart',
-    notes: 'Data Analytics Lead.',
-    tags: ['Work', 'Data']
+    category: 'colleague',
+    icon: 'layers',
+    notes: 'UX Researcher.'
   },
   {
     id: 'p-acq-1',
     name: 'Liam Gallagher',
-    category: 'acquaintance',
-    closeness: 2,
-    contactFrequency: 'rarely',
+    circle: 'distant',
+    drift: 0.4,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 90).toISOString(),
+    category: 'acquaintance',
     icon: 'user',
-    notes: 'Neighbor from 4th floor.',
-    tags: ['Building']
+    notes: 'Neighbor from 4th floor.'
   },
   {
     id: 'p-acq-2',
     name: 'Hannah Abbott',
-    category: 'acquaintance',
-    closeness: 1,
-    contactFrequency: 'rarely',
+    circle: 'distant',
+    drift: 0.6,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 120).toISOString(),
+    category: 'acquaintance',
     icon: 'hash',
-    notes: 'Met at regional tech conference.',
-    tags: ['Conference']
+    notes: 'Met at regional tech conference.'
   },
   {
     id: 'p-acq-3',
     name: 'Julian Vance',
-    category: 'acquaintance',
-    closeness: 2,
-    contactFrequency: 'rarely',
+    circle: 'distant',
+    drift: 0.8,
     lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 80).toISOString(),
-    icon: 'user',
-    notes: 'Elena’s cousin visiting from Montreal.',
-    tags: ['Network']
-  },
-  {
-    id: 'p-acq-4',
-    name: 'Nora Fischer',
     category: 'acquaintance',
-    closeness: 1,
-    contactFrequency: 'rarely',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 180).toISOString(),
-    icon: 'coffee',
-    notes: 'Local barista & ceramicist.',
-    tags: ['Local']
-  },
-  {
-    id: 'p-acq-5',
-    name: 'Zack Miller',
-    category: 'acquaintance',
-    closeness: 1,
-    contactFrequency: 'rarely',
-    lastContact: new Date(Date.now() - 1000 * 60 * 60 * 24 * 200).toISOString(),
     icon: 'user',
-    notes: 'Dog park acquaintance.',
-    tags: ['Pets']
+    notes: 'Elena’s cousin visiting from Montreal.'
   }
 ];
 
 export const SAMPLE_LINKS: Link[] = [
-  { id: 'l1', a: 'p-fam-1', b: 'p-fam-2', strength: 3 }, // Sister & Dad
-  { id: 'l2', a: 'p-fam-1', b: 'p-fam-3', strength: 3 }, // Sister & Grandma
-  { id: 'l3', a: 'p-partner', b: 'p-fam-1', strength: 3 }, // Elena & Sister
-  { id: 'l4', a: 'p-close-1', b: 'p-close-2', strength: 2 }, // Marcus & Sophia
-  { id: 'l5', a: 'p-colleague-1', b: 'p-colleague-2', strength: 3 }, // Sarah & Vikram
-  { id: 'l6', a: 'p-colleague-1', b: 'p-colleague-3', strength: 2 }, // Sarah & Emily
-  { id: 'l7', a: 'p-partner', b: 'p-acq-3', strength: 3 }, // Elena & Cousin Julian
-  { id: 'l8', a: 'p-friend-1', b: 'p-close-2', strength: 2 } // Chloe & Sophia
+  { id: 'l1', a: 'p-fam-1', b: 'p-fam-2' },
+  { id: 'l2', a: 'p-fam-1', b: 'p-fam-3' },
+  { id: 'l3', a: 'p-partner', b: 'p-fam-1' },
+  { id: 'l4', a: 'p-close-1', b: 'p-close-2' },
+  { id: 'l5', a: 'p-colleague-1', b: 'p-colleague-2' },
+  { id: 'l6', a: 'p-colleague-1', b: 'p-colleague-3' },
+  { id: 'l7', a: 'p-partner', b: 'p-acq-3' }
 ];
 
 export function getInitialState(): AppState {
@@ -336,10 +275,27 @@ class StateStore {
     this.notify();
   }
 
+  public spokeToday(id: string): void {
+    const person = this.state.people.find((p) => p.id === id);
+    if (!person) return;
+    this.recordState();
+    person.lastContact = new Date().toISOString();
+    this.notify();
+  }
+
+  public updateCircle(id: string, circle: Circle, drift: number = 0.5): void {
+    const person = this.state.people.find((p) => p.id === id);
+    if (!person) return;
+    if (person.circle === circle && Math.abs(person.drift - drift) < 0.05) return;
+    this.recordState();
+    person.circle = circle;
+    person.drift = drift;
+    this.notify();
+  }
+
   public deletePerson(id: string): void {
     this.recordState();
     this.state.people = this.state.people.filter((p) => p.id !== id);
-    // Remove links connected to this person
     this.state.links = this.state.links.filter((l) => l.a !== id && l.b !== id);
     this.notify();
   }
@@ -368,7 +324,7 @@ class StateStore {
     this.notify();
   }
 
-  public addLink(a: string, b: string, strength: 1 | 2 | 3 = 2): Link | null {
+  public addLink(a: string, b: string): Link | null {
     if (a === b) return null;
     const exists = this.state.links.some(
       (l) => (l.a === a && l.b === b) || (l.a === b && l.b === a)
@@ -379,8 +335,7 @@ class StateStore {
     const newLink: Link = {
       id: 'link-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
       a,
-      b,
-      strength
+      b
     };
     this.state.links.push(newLink);
     this.notify();
@@ -402,10 +357,8 @@ class StateStore {
     this.notify();
   }
 
-  public updateMe(name: string): void {
-    this.recordState();
-    this.state.me.name = name;
-    this.notify();
+  public getFadingPeople(limit: number = 5): Person[] {
+    return this.state.people.filter((p) => isFading(p)).slice(0, limit);
   }
 
   public clearSampleData(): void {
@@ -439,8 +392,8 @@ class StateStore {
 
       this.recordState();
       this.state = {
-        me: parsed.me?.name ? { name: String(parsed.me.name) } : { name: 'YOU' },
-        people: parsed.people,
+        me: { name: 'YOU' },
+        people: parsed.people.map((p: any) => this.migratePersonData(p)),
         links: Array.isArray(parsed.links) ? parsed.links : [],
         settings: {
           ...INITIAL_SETTINGS,
@@ -454,6 +407,29 @@ class StateStore {
     }
   }
 
+  private migratePersonData(p: any): Person {
+    // Legacy migration: closeness 5 -> core, 4 -> close, 3 -> regular, 1-2 -> distant
+    let circle: Circle = p.circle || 'regular';
+    if (p.closeness !== undefined && !p.circle) {
+      if (p.closeness >= 5) circle = 'core';
+      else if (p.closeness === 4) circle = 'close';
+      else if (p.closeness === 3) circle = 'regular';
+      else circle = 'distant';
+    }
+
+    return {
+      id: p.id || 'person-' + Math.random(),
+      name: p.name || 'Unnamed',
+      circle,
+      drift: typeof p.drift === 'number' ? p.drift : 0.5,
+      lastContact: p.lastContact,
+      category: p.category,
+      icon: p.icon || 'user',
+      notes: p.notes,
+      pinned: p.pinned
+    };
+  }
+
   private saveToStorage(): void {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
@@ -464,11 +440,28 @@ class StateStore {
 
   private loadFromStorage(): AppState | null {
     try {
+      // 1. Check v2 storage
       const item = localStorage.getItem(STORAGE_KEY);
       if (item) {
         const parsed = JSON.parse(item);
         if (parsed && Array.isArray(parsed.people)) {
+          parsed.people = parsed.people.map((p: any) => this.migratePersonData(p));
           return parsed;
+        }
+      }
+
+      // 2. Check legacy v1 storage and migrate
+      const legacyItem = localStorage.getItem(LEGACY_STORAGE_KEY);
+      if (legacyItem) {
+        const legacyParsed = JSON.parse(legacyItem);
+        if (legacyParsed && Array.isArray(legacyParsed.people)) {
+          const migratedPeople = legacyParsed.people.map((p: any) => this.migratePersonData(p));
+          return {
+            me: { name: 'YOU' },
+            people: migratedPeople,
+            links: Array.isArray(legacyParsed.links) ? legacyParsed.links : [],
+            settings: { ...INITIAL_SETTINGS, ...(legacyParsed.settings || {}) }
+          };
         }
       }
     } catch (e) {

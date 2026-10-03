@@ -1,12 +1,14 @@
 import { forceSimulation, forceRadial, forceManyBody, forceCollide, forceLink } from 'd3-force-3d';
-import { Person, Link } from '../types';
-import { calculateStrength } from './strength';
+import { Person, Link, Circle } from '../types';
+import { getTargetRadius, getCircleFromRadius } from './circles';
+import { store } from '../state/store';
 
 export interface LayoutNode {
   id: string;
   isMe: boolean;
+  circle?: Circle;
+  drift?: number;
   targetRadius: number;
-  strength: number;
   x?: number;
   y?: number;
   z?: number;
@@ -22,7 +24,6 @@ export interface LayoutNode {
 export interface LayoutLink {
   source: string | LayoutNode;
   target: string | LayoutNode;
-  strengthValue: number;
 }
 
 export class PhysicsLayout {
@@ -68,7 +69,6 @@ export class PhysicsLayout {
       id: 'me',
       isMe: true,
       targetRadius: 0,
-      strength: 1.0,
       x: 0,
       y: 0,
       z: 0,
@@ -84,28 +84,29 @@ export class PhysicsLayout {
     meNode.z = 0;
     newNodesMap.set('me', meNode);
 
-    // 2. People nodes
+    // 2. People nodes mapped to Dunbar circles
     for (const p of people) {
-      const breakdown = calculateStrength(p);
+      const targetRadius = getTargetRadius(p.circle, p.drift);
       const existing = existingNodes.get(p.id);
 
       let node: LayoutNode;
       if (existing) {
         node = existing;
-        node.targetRadius = breakdown.targetRadius;
-        node.strength = breakdown.finalStrength;
+        node.circle = p.circle;
+        node.drift = p.drift;
+        node.targetRadius = targetRadius;
         node.person = p;
       } else {
-        // Spawn initial position near origin or at random angle on target radius
         const angle = Math.random() * Math.PI * 2;
         const phi = (Math.random() - 0.5) * Math.PI * 0.4;
-        const r = breakdown.targetRadius;
+        const r = targetRadius;
 
         node = {
           id: p.id,
           isMe: false,
-          targetRadius: breakdown.targetRadius,
-          strength: breakdown.finalStrength,
+          circle: p.circle,
+          drift: p.drift,
+          targetRadius,
           person: p,
           x: r * Math.cos(angle) * Math.cos(phi),
           y: r * Math.sin(phi),
@@ -113,7 +114,6 @@ export class PhysicsLayout {
         };
       }
 
-      // Handle pinning
       if (p.pinned) {
         node.fx = p.pinned.x;
         node.fy = p.pinned.y;
@@ -130,37 +130,28 @@ export class PhysicsLayout {
     this.nodesMap = newNodesMap;
     const nodesArray = Array.from(this.nodesMap.values());
 
-    // 3. Links data (person to person, plus radial connection to ME for physics hint)
+    // 3. Person-to-person links
     const layoutLinks: LayoutLink[] = [];
-
-    // Add optional person-to-person links
     for (const l of links) {
       if (this.nodesMap.has(l.a) && this.nodesMap.has(l.b)) {
         layoutLinks.push({
           source: l.a,
-          target: l.b,
-          strengthValue: l.strength
+          target: l.b
         });
       }
     }
-
     this.links = layoutLinks;
 
-    // 4. Update forces
+    // 4. Update d3-force-3d forces
     this.simulation.nodes(nodesArray);
 
-    // Radial force to hold nodes at target radius from (0,0,0)
     const radialForce = forceRadial((d: any) => d.targetRadius, 0, 0, 0).strength((d: any) =>
       d.isMe ? 0 : 0.8
     );
 
-    // Collision force to prevent overlap
-    const collideForce = forceCollide((d: any) => (d.isMe ? 40 : 25 + d.strength * 15)).strength(0.7);
+    const collideForce = forceCollide((d: any) => (d.isMe ? 40 : 25)).strength(0.7);
+    const chargeForce = forceManyBody().strength((d: any) => (d.isMe ? -300 : -100));
 
-    // Many body repulsion force
-    const chargeForce = forceManyBody().strength((d: any) => (d.isMe ? -300 : -120));
-
-    // Link force between connected nodes
     const linkForce = forceLink(layoutLinks)
       .id((d: any) => d.id)
       .distance(150)
@@ -177,13 +168,31 @@ export class PhysicsLayout {
     }
   }
 
+  public handleNodeDragPosition(id: string, x: number, y: number, z: number): Circle | null {
+    const layoutNode = this.nodesMap.get(id);
+    if (!layoutNode || layoutNode.isMe || !layoutNode.person) return null;
+
+    const radialDist = Math.sqrt(x * x + y * y + z * z);
+    const { circle, drift } = getCircleFromRadius(radialDist);
+
+    const previousCircle = layoutNode.person.circle;
+    layoutNode.targetRadius = getTargetRadius(circle, drift);
+
+    if (previousCircle !== circle) {
+      store.updateCircle(id, circle, drift);
+      return circle;
+    } else {
+      layoutNode.person.drift = drift;
+    }
+    return null;
+  }
+
   public reheat() {
     if (!this.isPhysicsEnabled) return;
-    this.simulation.alpha(0.4).restart();
+    this.simulation.alpha(0.3).restart();
   }
 
   private constrainShell() {
-    // Flatten Z-axis to ±35% of radial distance for a sleek 3D web shell
     this.nodesMap.forEach((node) => {
       if (node.isMe) return;
       if (node.fx !== null && node.fx !== undefined) return;

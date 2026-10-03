@@ -1,18 +1,16 @@
-export type Category = 'family' | 'partner' | 'close_friend' | 'friend' | 'colleague' | 'acquaintance';
+export type Circle = 'core' | 'close' | 'regular' | 'distant';
 
-export type ContactFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'rarely';
+export type RecencyStage = 'this_week' | 'this_month' | 'few_months' | 'over_a_year';
 
 export interface Person {
   id: string;
   name: string;
-  category: Category;
-  closeness: 1 | 2 | 3 | 4 | 5;
-  contactFrequency?: ContactFrequency;
-  lastContact?: string; // ISO date string (YYYY-MM-DD or full ISO)
+  circle: Circle;
+  drift: number; // 0..1 position within the circle band
+  lastContact?: string; // ISO date string
+  category?: string; // label only (e.g. 'family', 'partner', 'friend', 'colleague', 'acquaintance')
   icon?: string;
   notes?: string;
-  birthday?: string;
-  tags?: string[];
   pinned?: { x: number; y: number; z: number } | null;
 }
 
@@ -20,7 +18,7 @@ export interface Link {
   id: string;
   a: string;
   b: string;
-  strength: 1 | 2 | 3;
+  strength?: number;
 }
 
 export interface AppSettings {
@@ -37,24 +35,9 @@ export interface AppState {
   settings: AppSettings;
 }
 
-export interface StrengthConfig {
-  weights: {
-    base: number;
-    frequency: number;
-    recency: number;
-  };
-  frequencyScores: Record<ContactFrequency, number>;
-  categoryFloors: Record<Category, number>;
-  minRadius: number;
-  maxRadius: number;
-}
-
-export interface StrengthBreakdown {
-  base: number;
-  frequency: number;
-  recency: number;
-  categoryFloor: number;
-  rawStrength: number;
-  finalStrength: number;
-  targetRadius: number;
-}
+export const CIRCLE_DESCRIPTIONS: Record<Circle, string> = {
+  core: "The few people you'd call at 3 a.m.",
+  close: 'People you make real time for.',
+  regular: 'Friends and people you enjoy seeing.',
+  distant: 'People you know and keep warm.'
+};
