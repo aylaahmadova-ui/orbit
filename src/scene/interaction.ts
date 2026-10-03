@@ -5,6 +5,7 @@ import { EdgeManager } from './edges';
 import { PhysicsLayout } from '../lib/layout';
 import { store } from '../state/store';
 import { Circle } from '../types';
+import { sound } from '../lib/sound';
 
 export type NodeClickCallback = (personId: string | null) => void;
 export type ToastCallback = (message: string) => void;
@@ -125,7 +126,8 @@ export class InteractionManager {
           intersectPoint.z
         );
 
-        if (newCircle && layoutNode.person) {
+    if (newCircle && layoutNode.person) {
+          sound.playRingCross();
           const circleName = newCircle.charAt(0).toUpperCase() + newCircle.slice(1);
           if (this.onToastCallback) {
             this.onToastCallback(`${layoutNode.person.name} moved to ${circleName}`);
@@ -221,6 +223,7 @@ export class InteractionManager {
   }
 
   public selectNode(id: string) {
+    sound.playSelect();
     this.selectedId = id;
     const layoutNode = this.layout.getNode(id);
 
@@ -281,6 +284,8 @@ export class InteractionManager {
       this.hideTooltip();
       return;
     }
+
+    sound.playHover();
 
     const connected = new Set<string>();
     connected.add('me');

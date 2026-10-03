@@ -1,7 +1,9 @@
 import { store } from '../state/store';
+import { sound } from '../lib/sound';
 
 export class SettingsModal {
   private container: HTMLElement;
+  private soundEnabled: boolean = true;
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -25,6 +27,11 @@ export class SettingsModal {
     if (!body) return;
 
     body.innerHTML = `
+      <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+        <label class="form-label" style="margin-bottom:0;">AUDIO SOUND EFFECTS</label>
+        <input type="checkbox" id="setting-sound" ${this.soundEnabled ? 'checked' : ''} style="accent-color: #ff3d55;" />
+      </div>
+
       <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
         <label class="form-label" style="margin-bottom:0;">AUTO-ROTATE DRIFT</label>
         <input type="checkbox" id="setting-autorotate" ${state.settings.autoRotate ? 'checked' : ''} style="accent-color: #ff3d55;" />
@@ -61,6 +68,11 @@ export class SettingsModal {
   }
 
   private attachEvents(body: HTMLElement) {
+    body.querySelector('#setting-sound')?.addEventListener('change', (e) => {
+      this.soundEnabled = (e.target as HTMLInputElement).checked;
+      sound.setMuted(!this.soundEnabled);
+    });
+
     body.querySelector('#setting-autorotate')?.addEventListener('change', (e) => {
       store.updateSettings({ autoRotate: (e.target as HTMLInputElement).checked });
     });

@@ -2,6 +2,7 @@ import { Person, Circle } from '../types';
 import { CIRCLE_DESCRIPTIONS } from '../types';
 import { store } from '../state/store';
 import { getRecencyStage } from '../lib/recency';
+import { sound } from '../lib/sound';
 
 export class DetailPanel {
   private container: HTMLElement;
@@ -196,6 +197,7 @@ export class DetailPanel {
 
     // Spoke Today Button
     body.querySelector('#spoke-today-btn')?.addEventListener('click', () => {
+      sound.playSpokeToday();
       store.spokeToday(person.id);
       this.update();
     });
